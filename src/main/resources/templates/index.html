@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket 连接</title>
+</head>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/2.6.11/vue.js"></script>
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/theme-chalk/index.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/index.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.js"></script>
+
+<div class="camera_outer" id="app">
+
+  <el-alert
+      title="提交当前用户 id 和房间 id 后便可进行1对1通信、群组通信、屏幕共享和 摄像头监控等功能"
+      type="success"
+      :closable="false"
+  >
+  </el-alert>
+
+  <template>
+    <div style="margin: 20px;">
+      <el-radio v-model="radio" label="1">1对1发送</el-radio>
+      <el-radio v-model="radio" label="2">群组内发送</el-radio>
+    </div>
+  </template>
+
+  <el-form :model="loginForm" label-width="100px" class="demo-ruleForm">
+    <el-form-item label="用户 id" prop="userId">
+      <el-input type="text" v-model="loginForm.userId" autocomplete="off" :disabled="hasSubmit"></el-input>
+    </el-form-item>
+    <el-form-item label="房间 id" prop="roomId">
+      <el-input type="text" v-model="loginForm.roomId" autocomplete="off" :disabled="hasSubmit"></el-input>
+    </el-form-item>
+    <el-form-item>
+      <el-button type="primary" @click="connSocket" :disabled="hasSubmit">提交</el-button>
+    </el-form-item>
+  </el-form>
+
+  <el-form v-show="hasSubmit" :model="messageForm" label-width="100px" class="demo-ruleForm">
+    <el-form-item label="消息" prop="content">
+      <el-input type="text" v-model="messageForm.content" autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item v-show="radio === '1'" label="接收方 id" prop="userId">
+      <el-input type="text" v-model="messageForm.userId" autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item v-show="radio === '2'" label="房间 id" prop="userId">
+      <el-input type="text" v-model="messageForm.roomId" autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item v-show="radio === '1'">
+      <el-button type="primary" @click="sendMessage">提交</el-button>
+    </el-form-item>
+    <el-form-item v-show="radio === '2'">
+      <el-button type="primary" @click="sendGroupMessage">提交</el-button>
+    </el-form-item>
+  </el-form>
+</div>
+
+
+</body>
+<script>
+  new Vue({
+    el: '#app',
+    data() {
+      return {
+        loginForm: {
+          userId: '',
+          roomId: ''
+        },
+        messageForm: {
+          content: '',
+          userId: ''
+        },
+        type: {
+          sendMessageEx: 'send::message::one',
+          sendGroup: 'send::message::group'
+        },
+        websocket: null,
+        hasSubmit: false,
+        radio: '1'
+      }
+    },
+    methods: {
+      // 连接 websocket 服务
+      connSocket() {
+        //初始化websocket连接
+        window.location.url
+        const url = 'ws:127.0.0.1' + window.location.port + '/websocket/' + this.loginForm.roomId + '/' + this.loginForm.userId
+        this.websocket = new WebSocket(url);
+        console.log("websocket连接成功")
+        this.hasSubmit = true
+        this.websocket.onopen = () => {
+        };
+        this.websocket.onclose = () => {
+          console.log("Connection closed.");
+        };
+        this.websocket.onerror = () => {
+          console.log("websocket error");
+        };
+        this.websocket.onmessage = this.handleMessage;
+      },
+      sendMessage() {
+        // this.websocket.send(JSON.stringify({
+        //   command: this.type.sendMessageEx,
+        //   userId: this.messageForm.userId,
+        //   roomId: this.loginForm.roomId,
+        //   content: textMsg
+        // }));
+        $.ajax({
+          url: "/message/1t1",
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": JSON.stringify({
+              command: this.type.sendMessageEx,
+              userId: this.loginForm.userId,
+              roomId: this.loginForm.roomId,
+              receiverId: this.messageForm.userId,
+              content: this.messageForm.content
+            })
+          }
+        });
+      },
+      sendGroupMessage() {
+        $.ajax({
+          url: "/message/group",
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": JSON.stringify({
+              command: this.type.sendGroup,
+              userId: this.loginForm.userId,
+              roomId: this.loginForm.roomId,
+              receiverRoomId: this.messageForm.roomId,
+              content: this.messageForm.content
+            })
+          }
+        });
+      },
+      handleMessage(event) {
+        console.log(event.data);
+        let message = JSON.parse(event.data);
+        this.$message({
+          message: message.content,
+          type: 'warning'
+        });
+      }
+    }
+  })
+</script>
+</html>
