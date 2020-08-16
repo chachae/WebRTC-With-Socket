@@ -10,21 +10,26 @@
 <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.js"></script>
 
 <div class="camera_outer" id="app">
-
   <el-alert
-      title="提交当前用户 id 和房间 id 后便可进行1对1通信、群组通信、屏幕共享和 摄像头监控等功能"
+      title="使用方式"
+      description="提交当前用户 id 和房间 id 后便可进行1对1通信、群组通信、屏幕共享和 摄像头监控等功能"
       type="success"
       :closable="false"
+      show-icon
+      effect="dark"
   >
   </el-alert>
 
+  <!-- 功能选择 -->
   <template>
     <div style="margin: 20px;">
-      <el-radio v-model="radio" label="1">1对1发送</el-radio>
-      <el-radio v-model="radio" label="2">群组内发送</el-radio>
+      <el-radio v-model="radio" label="1" border>1对1发送</el-radio>
+      <el-radio v-model="radio" label="2" border>群组内发送</el-radio>
+      <el-radio v-model="radio" label="3" border>单方摄像头监控与屏幕共享</el-radio>
     </div>
   </template>
 
+  <!-- 登录表单（模拟） -->
   <el-form :model="loginForm" label-width="100px" class="demo-ruleForm">
     <el-form-item label="用户 id" prop="userId">
       <el-input type="text" v-model="loginForm.userId" autocomplete="off" :disabled="hasSubmit"></el-input>
@@ -37,55 +42,119 @@
     </el-form-item>
   </el-form>
 
+  <!-- 统一消息发送 -->
   <el-form v-show="hasSubmit" :model="messageForm" label-width="100px" class="demo-ruleForm">
-    <el-form-item label="消息" prop="content">
+    <el-form-item v-show="radio === '1' || radio === '2'" label="消息" prop="content">
       <el-input type="text" v-model="messageForm.content" autocomplete="off"></el-input>
     </el-form-item>
+
+    <!-- 单用户双向（一对一） -->
     <el-form-item v-show="radio === '1'" label="接收方 id" prop="userId">
       <el-input type="text" v-model="messageForm.userId" autocomplete="off"></el-input>
     </el-form-item>
-    <el-form-item v-show="radio === '2'" label="房间 id" prop="userId">
-      <el-input type="text" v-model="messageForm.roomId" autocomplete="off"></el-input>
-    </el-form-item>
     <el-form-item v-show="radio === '1'">
       <el-button type="primary" @click="sendMessage">提交</el-button>
+    </el-form-item>
+
+    <!-- 群组消息 -->
+    <el-form-item v-show="radio === '2'" label="房间 id" prop="userId">
+      <el-input type="text" v-model="messageForm.roomId" autocomplete="off"></el-input>
     </el-form-item>
     <el-form-item v-show="radio === '2'">
       <el-button type="primary" @click="sendGroupMessage">提交</el-button>
     </el-form-item>
   </el-form>
+
+  <!-- 屏幕共享 -->
+  <el-alert
+      v-show="radio === '3' && hasSubmit"
+      title="单方摄像头监控与屏幕共享使用须知"
+      description="填写对方的用户 id 即可实现单方摄像头监控与屏幕共享功能，前提对方已经入被监控状态，本案例作为在线反作弊系统提供相关可用思路，需要对方进入监控区域：访问 /monitor 并完成相关设置，实际反作弊系统应用中应当是已对进入域控的用户自动连接 socket 服务连接，并完成监控、屏控等相关自动化设置。"
+      type="success"
+      :closable="false"
+      show-icon
+      effect="dark"
+  >
+  </el-alert>
+  <el-form v-show="radio === '3' && hasSubmit" :model="monitorForm" label-width="100px" class="demo-ruleForm">
+    <el-form-item label="房间 id" prop="roomId">
+      <el-input type="text" v-model="loginForm.roomId" disabled autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item label="用户 id" prop="roomId">
+      <el-input type="text" v-model="loginForm.userId" disabled autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item label="被监控方用户 id" prop="userId">
+      <el-input type="text" v-model="monitorForm.userId" autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item>
+      <el-button type="primary" @click="sendMonitor">提交</el-button>
+    </el-form-item>
+  </el-form>
+
+  <h3 v-show="radio === '3' && hasSubmit">用户 {{ monitorForm.userId }} 的屏幕共享</h3>
+  <video v-show="radio === '3' && hasSubmit" id="remoteVideo" width="80%" height="50%" autoplay="autoplay"
+         style="align-content:center;border:1px solid #464646"></video>
 </div>
-
-
 </body>
 <script>
   new Vue({
     el: '#app',
     data() {
       return {
+        // 登录表单
         loginForm: {
           userId: '',
           roomId: ''
         },
+        // 消息表单
         messageForm: {
           content: '',
           userId: ''
         },
+        // 监控表单
+        monitorForm: {
+          userId: ''
+        },
+        // socket 类型
         type: {
           sendMessageEx: 'send::message::one',
-          sendGroup: 'send::message::group'
+          sendGroup: 'send::message::group',
+          offer: 'offer',
+          answer: 'answer',
+          candidate: 'candidate',
+          cmd: 'cmd'
         },
         websocket: null,
         hasSubmit: false,
-        radio: '1'
+        radio: '1',
+        myPeerConnection: null,
+        // PeerConnection 初始化标记
+        RTCPeerConnectionCreated: false,
+        // 信令服务器配置
+        configuration: {
+          "iceServers": [{
+            'urls': [
+              'stun:stun.l.google.com:19302',
+              'stun:stun1.l.google.com:19302',
+              'stun:stun2.l.google.com:19302',
+              'stun:stun.l.google.com:19302?transport=udp',
+            ]
+          }]
+        },
       }
     },
     methods: {
-      // 连接 websocket 服务
+      /***
+       *初始化websocket
+       */
       connSocket() {
-        //初始化websocket连接
-        window.location.url
-        const url = 'ws:127.0.0.1' + window.location.port + '/websocket/' + this.loginForm.roomId + '/' + this.loginForm.userId
+        let url
+        let isHttps = 'https:' === document.location.protocol;
+        if (isHttps) {
+          url = 'wss:' + window.location.host + '/websocket/' + this.loginForm.roomId + '/' + this.loginForm.userId
+        } else {
+          url = 'ws:' + window.location.host + '/websocket/' + this.loginForm.roomId + '/' + this.loginForm.userId
+        }
         this.websocket = new WebSocket(url);
         console.log("websocket连接成功")
         this.hasSubmit = true
@@ -99,53 +168,194 @@
         };
         this.websocket.onmessage = this.handleMessage;
       },
-      sendMessage() {
-        // this.websocket.send(JSON.stringify({
-        //   command: this.type.sendMessageEx,
-        //   userId: this.messageForm.userId,
-        //   roomId: this.loginForm.roomId,
-        //   content: textMsg
-        // }));
+
+      /***
+       * post 请求
+       */
+      post(url, message) {
+        $.ajax({
+          url: url,
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": message
+          }
+        });
+      },
+
+      /***
+       * 一对一消息发送
+       */
+      sendOne(message) {
         $.ajax({
           url: "/message/1t1",
           type: "POST",
           dataType: "json",
           async: true,
           data: {
-            "message": JSON.stringify({
-              command: this.type.sendMessageEx,
-              userId: this.loginForm.userId,
-              roomId: this.loginForm.roomId,
-              receiverId: this.messageForm.userId,
-              content: this.messageForm.content
-            })
+            "message": message
           }
         });
       },
+
+      /***
+       *一对一消息
+       */
+      sendMessage() {
+        this.sendOne(JSON.stringify({
+          command: this.type.sendMessageEx,
+          userId: this.loginForm.userId,
+          roomId: this.loginForm.roomId,
+          receiverId: this.messageForm.userId,
+          content: this.messageForm.content
+        }))
+      },
+
+      /***
+       * 监控命令
+       */
+      sendMonitor() {
+        this.initPeer();
+        if (this.monitorForm.userId !== '') {
+          this.sendOne(JSON.stringify({
+            command: this.type.cmd,
+            userId: this.loginForm.userId,
+            roomId: this.loginForm.roomId,
+            receiverId: this.monitorForm.userId
+          }))
+        }
+      },
+
+      /***
+       * 群组消息
+       */
       sendGroupMessage() {
-        $.ajax({
-          url: "/message/group",
-          type: "POST",
-          dataType: "json",
-          async: true,
-          data: {
-            "message": JSON.stringify({
-              command: this.type.sendGroup,
-              userId: this.loginForm.userId,
-              roomId: this.loginForm.roomId,
-              receiverRoomId: this.messageForm.roomId,
-              content: this.messageForm.content
-            })
-          }
-        });
+        this.post('/message/group', JSON.stringify({
+          command: this.type.sendGroup,
+          userId: this.loginForm.userId,
+          roomId: this.loginForm.roomId,
+          receiverId: this.monitorForm.userId
+        }))
       },
-      handleMessage(event) {
-        console.log(event.data);
-        let message = JSON.parse(event.data);
+
+      /***
+       * 初始化 RTCPeerConnection
+       */
+      initPeer() {
+        this.myPeerConnection = new RTCPeerConnection(this.configuration);
+        //添加事件监听函数
+        this.myPeerConnection.onicecandidate = this.handleIceCandidate;
+        this.myPeerConnection.ontrack = this.handleOnTrack;
+        this.RTCPeerConnectionCreated = true;
+      },
+
+      /***
+       *处理candidate
+       */
+      handleCandidate(message) {
+        let candidate = JSON.parse(message.content).candidate
+        this.myPeerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) => {
+          console.log(e)
+        })
+      },
+
+      /***
+       * 处理iceCandidate
+       */
+      handleIceCandidate(event) {
+        if (event.candidate) {
+          this.sendOne(JSON.stringify({
+            command: this.type.candidate,
+            userId: this.loginForm.userId,
+            roomId: this.loginForm.roomId,
+            receiverId: this.monitorForm.userId,
+            content: {candidate: event.candidate}
+          }))
+        }
+      },
+
+      /***
+       * 处理track
+       */
+      handleOnTrack(event) {
+        let remoteMediaStream = event.streams[0];
+        let remoteVideo = document.getElementById("remoteVideo");
+        remoteVideo.srcObject = remoteMediaStream;
+        remoteVideo.play();
+      },
+
+      /***
+       * 处理offer
+       */
+      handleOffer(message) {
+        if (this.RTCPeerConnectionCreated === false) {
+          this.initPeer()
+        }
+        let sdpMessage = message.content;
+        let sdp = JSON.parse(sdpMessage).sdp;
+        this.myPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        this.myPeerConnection.createAnswer().then(this.setLocalAndAnswer)
+        .catch((e) => {
+              console.log(e);
+            }
+        );
+      },
+
+      /***
+       * 处理answer
+       */
+      handleAnswer(message) {
+        let sdp = JSON.parse(message.content).sdp;
+        this.myPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+      },
+
+      /**
+       * 处理一对一、群组消息
+       */
+      handleOne(message) {
         this.$message({
           message: message.content,
           type: 'warning'
         });
+      },
+
+      /***
+       * 处理 offer 并 answer
+       */
+      setLocalAndAnswer(sessionDescription) {
+        this.myPeerConnection.setLocalDescription(sessionDescription)
+        this.sendOne(JSON.stringify({
+          command: this.type.answer,
+          userId: this.loginForm.userId,
+          roomId: this.loginForm.roomId,
+          receiverId: this.monitorForm.userId,
+          content: {sdp: sessionDescription}
+        }))
+      },
+
+      /***
+       * 消息处理器
+       */
+      handleMessage(event) {
+        let message = JSON.parse(event.data);
+        switch (message.command) {
+          case this.type.sendMessageEx:
+            this.handleOne(message)
+            break;
+          case this.type.sendGroup:
+            this.handleOne(message)
+            break;
+          case this.type.offer:
+            this.handleOffer(message);
+            break;
+          case this.type.candidate:
+            this.handleCandidate(message);
+            break;
+          case this.type.answer:
+            this.handleAnswer(message);
+            break;
+        }
       }
     }
   })

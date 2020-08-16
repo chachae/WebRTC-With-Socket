@@ -15,11 +15,6 @@ import org.springframework.web.socket.server.support.HttpSessionHandshakeInterce
 @Slf4j
 public class WebSocketInterceptor extends HttpSessionHandshakeInterceptor {
 
-//  public static void main(String[] args) {
-//    String url = "wss://127.0.0.1:8443/websocket/1001/2002";
-//    System.out.println(url.split("/")[4]);
-//  }
-
   @Override
   public boolean beforeHandshake(ServerHttpRequest serverHttpRequest, ServerHttpResponse seHttpResponse,
       WebSocketHandler wsHandler, Map<String, Object> attributes) throws Exception {

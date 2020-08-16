@@ -1,8 +1,5 @@
 package com.chachae.webrtc.service;
 
-import com.chachae.webrtc.entity.Message;
-import org.springframework.stereotype.Component;
-
 /**
  * @author chachae
  * @version v1.0
@@ -13,7 +10,7 @@ public interface RedisMessage {
   /**
    * 接受信息
    *
-   * @param message
+   * @param message 消息 JSON
    */
   void receiveMessage(String message);
 }

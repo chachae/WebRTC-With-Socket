@@ -1,7 +1,6 @@
 package com.chachae.webrtc.handler;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.chachae.webrtc.constant.MessageConstant;
 import com.chachae.webrtc.entity.ConnectionSystemUser;
 import com.chachae.webrtc.entity.Message;
@@ -12,7 +11,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -49,13 +47,8 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
     //获取用户信息
     String userId = getSessionUserId(session);
     String roomId = getSessionRoomId(session);
-    if (ObjectUtils.isEmpty(socketMap.get(userId))) {
-      socketMap.put(userId, session);
-      ConnectionSystemUser user = new ConnectionSystemUser(userId, roomId);
-      roomService.enterRoom(roomId, user);
-    }
-    Long count = roomService.countUser(roomId);
-    log.info("用户 {} 连接 socket 服务器成功，当前房间 ID 为：{}，当前组用户人数共有 {} 人。", userId, roomId, count);
+    socketMap.put(userId, session);
+    roomService.enterRoom(roomId, new ConnectionSystemUser(userId, roomId));
   }
 
   /**
@@ -63,8 +56,7 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
    */
   @Override
   public void handleMessage(WebSocketSession session, WebSocketMessage<?> webSocketMessage) {
-    Message message = JSONObject.parseObject(webSocketMessage.getPayload().toString(), Message.class);
-    log.info("收到来自用户：{} 的信息：{}", message.getUserId(), message.getContent());
+    Message message = JSON.parseObject(webSocketMessage.getPayload().toString(), Message.class);
     sendMessage(message);
   }
 
@@ -75,14 +67,11 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
 
   @Override
   public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) throws Exception {
-    //即使连接错误，回调了onError方法，最终也会回调onClose方法，所有退出房间写在这里比较合适
+    // 即使连接错误，回调了onError方法，最终也会回调onClose方法
     String userId = getSessionUserId(session);
-    String roomId = getSessionRoomId(session);
-    roomService.removeUser(roomId, userId);
-    session.close();
+    roomService.countUser(getSessionRoomId(session));
     socketMap.remove(userId);
-    Long count = roomService.countUser(roomId);
-    log.info("用户 {} 离开，当前房间 ID 为：{}，当前组用户人数共有 {} 人。", userId, roomId, count);
+    session.close();
   }
 
   @Override
@@ -90,15 +79,14 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
     return false;
   }
 
+  /**
+   * 接收广播消息
+   *
+   * @param message 消息 JSON
+   */
   @Override
   public void receiveMessage(String message) {
-    Message res = JSON.parseObject(message, Message.class);
-    System.out.println(res);
-    // 获取消息并将 JSON 转 bean
-    boolean flag = sendMessage(res);
-    if (flag) {
-      log.info("我发送消息成功了！");
-    }
+    sendMessage(JSON.parseObject(message, Message.class));
   }
 
   /**
@@ -107,18 +95,19 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
    * @param message 消息对象
    */
   public boolean sendMessage(Message message) {
+    // 获取广播消息指令
     switch (message.getCommand()) {
       // 1对1发送消息
+      case MessageConstant.TYPE_COMMAND_OFFER:
+      case MessageConstant.TYPE_COMMAND_ANSWER:
+      case MessageConstant.TYPE_COMMAND_CANDIDATE:
       case MessageConstant.COMMAND_SEND_ONE:
-        WebSocketSession session = socketMap.get(message.getReceiverId());
-        return messageForwardService.sendMessageToOne(message, session);
+      case MessageConstant.COMMAND_SEND_CMD:
+        return messageForwardService.sendMessageToOne(message, socketMap.get(message.getReceiverId()));
       // 群组内群发
       case MessageConstant.COMMAND_SEND_GROUP:
         Set<ConnectionSystemUser> users = roomService.listUser(message.getReceiverRoomId());
-        for (ConnectionSystemUser user : users) {
-          messageForwardService.sendMessageToOne(message, socketMap.get(user.getUserId()));
-        }
-        return true;
+        return messageForwardService.sendMessageGroup(message, users, socketMap);
       default:
         return true;
     }

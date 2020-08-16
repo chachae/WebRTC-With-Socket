@@ -12,10 +12,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 @Slf4j
 @Controller
-public class MainController {
+public class PageController {
 
   @GetMapping({"/", "index"})
   public String goIndex() {
     return "index";
+  }
+
+  @GetMapping("monitor")
+  public String goMonitor() {
+    return "monitor";
   }
 }
