@@ -108,6 +108,9 @@ public class WebSocketMessageHandler implements WebSocketHandler, RedisMessage {
       case MessageConstant.COMMAND_SEND_GROUP:
         Set<ConnectionSystemUser> users = roomService.listUser(message.getReceiverRoomId());
         return messageForwardService.sendMessageGroup(message, users, socketMap);
+      // 发送心跳
+      case MessageConstant.TYPE_COMMAND_HEART:
+        return messageForwardService.sendMessageToOne(message, socketMap.get(message.getUserId()));
       default:
         return true;
     }

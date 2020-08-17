@@ -4,7 +4,6 @@ import com.chachae.webrtc.entity.ConnectionSystemUser;
 import com.chachae.webrtc.entity.Message;
 import java.util.Map;
 import java.util.Set;
-import org.springframework.web.server.WebSession;
 import org.springframework.web.socket.WebSocketSession;
 
 /**

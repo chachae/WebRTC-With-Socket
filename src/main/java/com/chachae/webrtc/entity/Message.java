@@ -29,4 +29,6 @@ public class Message implements Serializable {
   private String roomId;
   private String content;
 
+  public Message() {
+  }
 }

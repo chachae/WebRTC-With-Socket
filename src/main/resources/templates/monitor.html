@@ -56,7 +56,8 @@
           offer: 'offer',
           answer: 'answer',
           candidate: 'candidate',
-          cmd: 'cmd'
+          cmd: 'cmd',
+          heart: 'heart'
         },
         websocket: null,
         hasSubmit: false,
@@ -65,13 +66,12 @@
           audio: false
         },
         configuration: {
-          "iceServers": [{
-            'urls': [
-              'stun:stun.l.google.com:19302',
-              'stun:stun1.l.google.com:19302',
-              'stun:stun2.l.google.com:19302',
-              'stun:stun.l.google.com:19302?transport=udp',
-            ]
+          iceServers: [{
+            'urls': 'stun:stun.l.google.com:19302'
+          }, {
+            'urls': 'turn:你的ip:3478',
+            'username': '用户名',
+            'credential': '密码'
           }]
         },
         screenConstraints: {
@@ -90,6 +90,12 @@
         rtcPeerConnection: null,
         cmdUser: null,
       }
+    },
+
+    mounted() {
+      this.$nextTick(() => {
+        setInterval(this.checkHeart, 50000);
+      })
     },
 
     methods: {
@@ -201,6 +207,27 @@
         })
       },
 
+      /**
+       * 检测心跳
+       */
+      checkHeart() {
+        this.sendOne(JSON.stringify({
+          command: this.type.heart,
+          userId: this.loginForm.userId,
+          content: {status: 'ok'}
+        }))
+      },
+
+      /***
+       * socket 心跳
+       */
+      handleHeart(message) {
+        let content = JSON.parse(message.content)
+        if (content.status === 'ok') {
+          console.log("获得websocket心跳")
+        }
+      },
+
       handleMessage(event) {
         let message = JSON.parse(event.data);
         switch (message.command) {
@@ -215,6 +242,9 @@
             break
           case this.type.offer:
             this.handleOffer(message);
+            break
+          case this.type.heart:
+            this.handleHeart(message);
             break
         }
       }
