@@ -141,6 +141,8 @@
       // 打开本地音视频,用promise这样在打开视频成功后，再进行下一步操作
       openLocalMedia() {
         return new Promise((resolve, reject) => {
+          // 摄像头（二选一）
+          // navigator.mediaDevices.getUserMedia(this.mediaConstraints)
           // 屏幕共享
           navigator.mediaDevices.getDisplayMedia(this.screenConstraints)
           .then((stream) => {
