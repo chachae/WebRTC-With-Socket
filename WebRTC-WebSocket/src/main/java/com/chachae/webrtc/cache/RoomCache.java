@@ -1,8 +1,8 @@
 package com.chachae.webrtc.cache;
 
 import com.chachae.webrtc.common.AbstractRedisCache;
+import com.chachae.webrtc.common.RedisService;
 import com.chachae.webrtc.entity.ConnectionSystemUser;
-import com.chachae.webrtc.service.RedisService;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

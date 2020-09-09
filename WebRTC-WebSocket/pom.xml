@@ -13,6 +13,13 @@
 
   <dependencies>
 
+    <!-- webrtc-common -->
+    <dependency>
+      <groupId>com.chachae.webrtc</groupId>
+      <artifactId>WebRTC-Common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <!-- websocket -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

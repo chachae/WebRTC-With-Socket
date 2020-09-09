@@ -13,6 +13,20 @@
 
   <dependencies>
 
+    <!-- webrtc-common -->
+    <dependency>
+      <groupId>com.chachae.webrtc</groupId>
+      <artifactId>WebRTC-Common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- webrtc-netty-socket -->
+    <dependency>
+      <groupId>com.chachae.webrtc</groupId>
+      <artifactId>Netty-WebSocket-Starter</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <!-- netty-all -->
     <dependency>
       <groupId>io.netty</groupId>

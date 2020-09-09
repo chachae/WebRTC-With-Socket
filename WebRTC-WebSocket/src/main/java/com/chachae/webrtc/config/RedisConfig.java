@@ -1,6 +1,6 @@
 package com.chachae.webrtc.config;
 
-import com.chachae.webrtc.service.RedisService;
+import com.chachae.webrtc.common.RedisService;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
