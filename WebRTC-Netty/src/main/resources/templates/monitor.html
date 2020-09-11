@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>摄像头监控与屏幕共享</title>
+</head>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/2.6.11/vue.js"></script>
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/theme-chalk/index.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/index.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.js"></script>
+
+<div class="camera_outer" id="app">
+
+  <el-alert
+      title="使用方式"
+      description="提交当前用户 id 和房间 id 后完成屏幕共享控制、摄像头监控功能设置"
+      type="success"
+      :closable="false"
+      show-icon
+      effect="dark"
+      style="margin-bottom: 20px"
+  >
+  </el-alert>
+
+  <el-form :model="loginForm" label-width="100px" class="demo-ruleForm">
+    <el-form-item label="socket 端口" prop="port">
+      <el-input type="text" v-model="loginForm.port" autocomplete="off" :disabled="hasSubmit"></el-input>
+    </el-form-item>
+    <el-form-item label="用户 id" prop="userId">
+      <el-input type="text" v-model="loginForm.userId" autocomplete="off" :disabled="hasSubmit"></el-input>
+    </el-form-item>
+  </el-form>
+
+  <div v-show="hasSubmit" style="flex-direction: column;justify-content: space-around; margin-top: 20px">
+    <video id="localVideo" width="80%" height="50%" autoplay="autoplay"
+           style="border:1px solid #464646"></video>
+  </div>
+</div>
+</body>
+<script>
+  new Vue({
+    el: '#app',
+    data() {
+      return {
+        loginForm: {
+          userId: '',
+          port: 10087
+        },
+        websocket: null,
+        hasSubmit: false,
+        mediaConstraints: {
+          video: true,
+          audio: false
+        },
+        configuration: {
+          iceServers: [{
+            'urls': 'stun:stun.l.google.com:19302'
+          }, {
+            'urls': 'turn:127.0.0.1:3478',
+            'username': '123456',
+            'credential': '123456'
+          }]
+        },
+        screenConstraints: {
+          video: {
+            cursor: 'always' | 'motion' | 'never',
+            displaySurface: 'application' | 'browser' | 'monitor' | 'window'
+          }
+        },
+        offerOptions: {
+          iceRestart: true,
+          offerToReceiveAudio: false,
+          offerToReceiveVideo: true
+        },
+        localMediaStream: null,
+        localScreenStream: null,
+        rtcPeerConnection: null,
+        cmdUser: null,
+      }
+    },
+
+    mounted() {
+      this.randomId()
+      this.connSocket()
+    },
+
+    methods: {
+      // 连接 websocket 服务
+      connSocket() {
+        let url
+        let isHttps = 'https:' === document.location.protocol;
+        if (isHttps) {
+          url = 'wss://10.71.29.182:' + this.loginForm.port + '/ws/' + this.loginForm.userId
+        } else {
+          url = 'ws://10.71.29.182:' + this.loginForm.port + '/ws/' + this.loginForm.userId
+        }
+        this.websocket = new WebSocket(url);
+        console.log("websocket连接成功")
+        this.openLocalMedia()
+        this.hasSubmit = true
+        this.websocket.onopen = () => {
+        };
+        this.websocket.onclose = () => {
+          console.log("Connection closed.");
+        };
+        this.websocket.onerror = () => {
+          console.log("websocket error");
+        };
+        this.websocket.onmessage = this.handleMessage;
+      },
+
+      /***
+       * 一对一消息发送
+       */
+      sendOne(message) {
+        $.ajax({
+          url: "/message/1t1",
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": message
+          }
+        });
+      },
+
+      randomId() {
+        this.loginForm.userId = Math.floor(Math.random() * 1000 + 1)
+      },
+
+      // 打开本地音视频,用promise这样在打开视频成功后，再进行下一步操作
+      openLocalMedia() {
+        return new Promise((resolve, reject) => {
+          // 摄像头（二选一）
+          // navigator.mediaDevices.getUserMedia(this.mediaConstraints)
+          // 屏幕共享
+          navigator.mediaDevices.getDisplayMedia(this.screenConstraints)
+          .then((stream) => {
+            this.localMediaStream = stream;
+            let localVideo = document.getElementById("localVideo");
+            localVideo.srcObject = this.localMediaStream;
+            localVideo.play();
+          })
+          .then(() => console.log("打开本地音视频设备成功"))
+          .catch(() => console.log("打开本地音视频设备失败"));
+        });
+      },
+
+      initPeer() {
+        this.rtcPeerConnection = new RTCPeerConnection(this.configuration);
+        this.rtcPeerConnection.onicecandidate = this.handleIceCandidate;
+        for (const track of this.localMediaStream.getTracks()) {
+          this.rtcPeerConnection.addTrack(track, this.localMediaStream);
+        }
+      },
+
+      handleIceCandidate(event) {
+        if (event.candidate) {
+          this.sendOne(JSON.stringify({
+            command: 'candidate',
+            fromId: this.loginForm.userId,
+            toId: this.cmdUser,
+            content: {candidate: event.candidate}
+          }))
+        }
+      },
+
+      handleCmd(message) {
+        this.cmdUser = message.toId
+        this.initPeer();
+        this.rtcPeerConnection.createOffer(this.offerOptions).then(this.setLocalAndOffer)
+        .catch((e) => {
+              console.log(e)
+            }
+        );
+      },
+
+      setLocalAndOffer(sessionDescription) {
+        this.rtcPeerConnection.setLocalDescription(sessionDescription);
+        this.sendOne(JSON.stringify({
+          command: 'offer',
+          fromId: this.loginForm.userId,
+          toId: this.cmdUser,
+          content: {sdp: sessionDescription}
+        }))
+      },
+
+      handleAnswer(message) {
+        let sdp = JSON.parse(message.content).sdp;
+        this.rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+      },
+
+      handleCandidate(message) {
+        let candidate = JSON.parse(message.content).candidate
+        this.rtcPeerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) => {
+          console.log(e)
+        })
+      },
+
+      handleMessage(event) {
+        let message = JSON.parse(event.data);
+        switch (message.command) {
+          case 'cmd':
+            this.handleCmd(message);
+            break;
+          case 'answer':
+            this.handleAnswer(message);
+            break;
+          case 'candidate':
+            this.handleCandidate(message);
+            break
+          case 'offer':
+            this.handleOffer(message);
+            break
+        }
+      }
+    }
+  })
+</script>
+</html>

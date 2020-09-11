@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket 连接</title>
+</head>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/2.6.11/vue.js"></script>
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/theme-chalk/index.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/element-ui/2.13.2/index.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.js"></script>
+
+<div class="camera_outer" id="app">
+
+  <!-- 屏幕共享 -->
+  <el-alert
+      v-show="hasSubmit"
+      title="单方摄像头监控与屏幕共享使用须知"
+      description="填写对方的用户 id 即可实现单方摄像头监控与屏幕共享功能，前提对方已经入被监控状态，本案例作为在线反作弊系统提供相关可用思路，需要对方进入监控区域：访问 /monitor 并完成相关设置，实际反作弊系统应用中应当是已对进入域控的用户自动连接 socket 服务连接，并完成监控、屏控等相关自动化设置。"
+      type="success"
+      :closable="false"
+      show-icon
+      effect="dark"
+  >
+  </el-alert>
+  <el-form :model="monitorForm" label-width="100px" class="demo-ruleForm">
+    <el-form-item label="用户 id" prop="userId">
+      <el-input type="text" v-model="loginForm.userId" disabled autocomplete="off" :disabled="true"></el-input>
+    </el-form-item>
+    <el-form-item label="监控用户" prop="userId">
+      <el-input type="text" v-model="monitorForm.userId" autocomplete="off"></el-input>
+    </el-form-item>
+    <el-form-item>
+      <el-button type="primary" @click="sendMonitor">提交</el-button>
+    </el-form-item>
+  </el-form>
+
+  <h3 v-show="hasSubmit">用户 {{ monitorForm.userId }} 的屏幕共享</h3>
+  <video v-show="hasSubmit" id="remoteVideo" width="80%" height="50%" autoplay="autoplay"
+         style="align-content:center;border:1px solid #464646"></video>
+</div>
+</body>
+<script>
+  new Vue({
+    el: '#app',
+    data() {
+      return {
+        // 登录表单
+        loginForm: {
+          userId: '',
+          port: 10086
+        },
+        // 监控表单
+        monitorForm: {
+          userId: ''
+        },
+        websocket: null,
+        hasSubmit: false,
+        myPeerConnection: null,
+        // PeerConnection 初始化标记
+        RTCPeerConnectionCreated: false,
+        // 信令服务器配置
+        configuration: {
+          iceServers: [{
+            'urls': 'stun:stun.l.google.com:19302'
+          }, {
+            'urls': 'turn:127.0.0.1:3478',
+            'username': '123456',
+            'credential': '123456'
+          }]
+        },
+      }
+    },
+    mounted() {
+      this.randomId()
+      this.connSocket()
+    },
+    methods: {
+      /***
+       *初始化websocket
+       */
+      connSocket() {
+        let url
+        let isHttps = 'https:' === document.location.protocol;
+        if (isHttps) {
+          url = 'wss://10.71.29.182:' + this.loginForm.port + '/ws/' + this.loginForm.userId
+        } else {
+          url = 'ws://10.71.29.182:' + this.loginForm.port + '/ws/' + this.loginForm.userId
+        }
+        this.websocket = new WebSocket(url);
+        console.log("websocket连接成功")
+        this.hasSubmit = true
+        this.websocket.onopen = () => {
+        };
+        this.websocket.onclose = () => {
+          console.log("Connection closed.");
+        };
+        this.websocket.onerror = () => {
+          console.log("websocket error");
+        };
+        this.websocket.onmessage = this.handleMessage;
+      },
+
+      randomId() {
+        this.loginForm.userId = Math.floor(Math.random() * 1000 + 1)
+      },
+
+      /***
+       * post 请求
+       */
+      post(url, message) {
+        $.ajax({
+          url: url,
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": message
+          }
+        });
+      },
+
+      /***
+       * 一对一消息发送
+       */
+      sendOne(message) {
+        $.ajax({
+          url: "/message/1t1",
+          type: "POST",
+          dataType: "json",
+          async: true,
+          data: {
+            "message": message
+          }
+        });
+      },
+
+      /***
+       * 监控命令
+       */
+      sendMonitor() {
+
+        this.initPeer();
+        if (this.monitorForm.userId !== '') {
+          this.sendOne(JSON.stringify({
+            command: 'cmd',
+            fromId: this.loginForm.userId,
+            toId: this.monitorForm.userId
+          }))
+        }
+      },
+
+      /***
+       * 初始化 RTCPeerConnection
+       */
+      initPeer() {
+        this.myPeerConnection = new RTCPeerConnection(this.configuration);
+        //添加事件监听函数
+        this.myPeerConnection.onicecandidate = this.handleIceCandidate;
+        this.myPeerConnection.ontrack = this.handleOnTrack;
+        this.RTCPeerConnectionCreated = true;
+      },
+
+      /***
+       *处理candidate
+       */
+      handleCandidate(message) {
+        let candidate = JSON.parse(message.content).candidate
+        this.myPeerConnection.addIceCandidate(new RTCIceCandidate(candidate)).catch((e) => {
+          console.log(e)
+        })
+      },
+
+      /***
+       * 处理iceCandidate
+       */
+      handleIceCandidate(event) {
+        if (event.candidate) {
+          this.sendOne(JSON.stringify({
+            command: 'candidate',
+            fromId: this.loginForm.userId,
+            toId: this.monitorForm.userId,
+            content: {candidate: event.candidate}
+          }))
+        }
+      },
+
+      /***
+       * 处理track
+       */
+      handleOnTrack(event) {
+        let remoteMediaStream = event.streams[0];
+        let remoteVideo = document.getElementById("remoteVideo");
+        remoteVideo.srcObject = remoteMediaStream;
+        remoteVideo.play();
+      },
+
+      /***
+       * 处理offer
+       */
+      handleOffer(message) {
+        if (this.RTCPeerConnectionCreated === false) {
+          this.initPeer()
+        }
+        let sdpMessage = message.content;
+        let sdp = JSON.parse(sdpMessage).sdp;
+        this.myPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp));
+        this.myPeerConnection.createAnswer().then(this.setLocalAndAnswer)
+        .catch((e) => {
+              console.log(e);
+            }
+        );
+      },
+
+      /***
+       * 处理answer
+       */
+      handleAnswer(message) {
+        let sdp = JSON.parse(message.content).sdp;
+        this.myPeerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+      },
+
+      /***
+       * 处理 offer 并 answer
+       */
+      setLocalAndAnswer(sessionDescription) {
+        this.myPeerConnection.setLocalDescription(sessionDescription)
+        this.sendOne(JSON.stringify({
+          command: 'answer',
+          fromId: this.loginForm.userId,
+          toId: this.monitorForm.userId,
+          content: {sdp: sessionDescription}
+        }))
+      },
+
+      /***
+       * 消息处理器
+       */
+      handleMessage(event) {
+        let message = JSON.parse(event.data);
+        switch (message.command) {
+          case 'offer':
+            this.handleOffer(message);
+            break;
+          case 'candidate':
+            this.handleCandidate(message);
+            break;
+          case 'answer':
+            this.handleAnswer(message);
+            break;
+        }
+      }
+    }
+  })
+</script>
+</html>

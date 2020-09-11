@@ -93,8 +93,7 @@ public class PojoMethodMapping {
             if (currentClazz == pojoClazz ||
                 !isMethodOverride(handshake, method)) {
               // Duplicate annotation
-              throw new DeploymentException(
-                  "pojoMethodMapping.duplicateAnnotation BeforeHandshake");
+              throw new DeploymentException("pojoMethodMapping.duplicateAnnotation BeforeHandshake");
             }
           }
         } else if (method.getAnnotation(OnOpen.class) != null) {
@@ -262,7 +261,8 @@ public class PojoMethodMapping {
   Object getEndpointInstance() throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
     Object implement = pojoClazz.getDeclaredConstructor().newInstance();
     AutowiredAnnotationBeanPostProcessor postProcessor = applicationContext.getBean(AutowiredAnnotationBeanPostProcessor.class);
-    postProcessor.postProcessPropertyValues(null, null, implement, null);
+    // postProcessor.postProcessPropertyValues(null, null, implement, null);
+    postProcessor.postProcessProperties(null,implement,null);
     return implement;
   }
 
