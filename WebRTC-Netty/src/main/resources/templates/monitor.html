@@ -11,17 +11,6 @@
 
 <div class="camera_outer" id="app">
 
-  <el-alert
-      title="使用方式"
-      description="提交当前用户 id 和房间 id 后完成屏幕共享控制、摄像头监控功能设置"
-      type="success"
-      :closable="false"
-      show-icon
-      effect="dark"
-      style="margin-bottom: 20px"
-  >
-  </el-alert>
-
   <el-form :model="loginForm" label-width="100px" class="demo-ruleForm">
     <el-form-item label="socket 端口" prop="port">
       <el-input type="text" v-model="loginForm.port" autocomplete="off" :disabled="hasSubmit"></el-input>
@@ -44,7 +33,7 @@
       return {
         loginForm: {
           userId: '',
-          port: 10087
+          port: 10086
         },
         websocket: null,
         hasSubmit: false,
@@ -56,8 +45,8 @@
           iceServers: [{
             'urls': 'stun:stun.l.google.com:19302'
           }, {
-            'urls': 'turn:127.0.0.1:3478',
-            'username': '123456',
+            'urls': 'turn:106.15.202.13:3478',
+            'username': 'chachae',
             'credential': '123456'
           }]
         },

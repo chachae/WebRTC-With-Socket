@@ -12,16 +12,6 @@
 <div class="camera_outer" id="app">
 
   <!-- 屏幕共享 -->
-  <el-alert
-      v-show="hasSubmit"
-      title="单方摄像头监控与屏幕共享使用须知"
-      description="填写对方的用户 id 即可实现单方摄像头监控与屏幕共享功能，前提对方已经入被监控状态，本案例作为在线反作弊系统提供相关可用思路，需要对方进入监控区域：访问 /monitor 并完成相关设置，实际反作弊系统应用中应当是已对进入域控的用户自动连接 socket 服务连接，并完成监控、屏控等相关自动化设置。"
-      type="success"
-      :closable="false"
-      show-icon
-      effect="dark"
-  >
-  </el-alert>
   <el-form :model="monitorForm" label-width="100px" class="demo-ruleForm">
     <el-form-item label="用户 id" prop="userId">
       <el-input type="text" v-model="loginForm.userId" disabled autocomplete="off" :disabled="true"></el-input>

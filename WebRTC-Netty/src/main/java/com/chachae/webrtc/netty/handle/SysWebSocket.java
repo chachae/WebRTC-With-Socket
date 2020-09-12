@@ -17,7 +17,6 @@ import com.chachae.webrtc.netty.socket.annotation.ServerEndpoint;
 import com.chachae.webrtc.netty.socket.pojo.Session;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.timeout.IdleStateEvent;
-import java.util.Map.Entry;
 
 /**
  * @author chachae
@@ -40,9 +39,6 @@ public class SysWebSocket implements RedisMessage {
   public void onOpen(Session session, HttpHeaders headers, @PathVariable String id) {
     // 实际业务，key=用户id，value=session
     SessionConfig.sessionMap.putIfAbsent(id, session);
-    for (Entry<String, Session> entry : SessionConfig.sessionMap.entrySet()) {
-      System.out.println(entry.getKey() + ":" + entry.getValue());
-    }
   }
 
   @OnClose
@@ -51,7 +47,6 @@ public class SysWebSocket implements RedisMessage {
     if (id instanceof String) {
       SessionConfig.sessionMap.remove(id);
     }
-    System.out.println("--------------------");
   }
 
   @OnError
