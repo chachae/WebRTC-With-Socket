@@ -114,8 +114,16 @@ public class SysWebSocket implements RedisMessage {
       case MsgTypeConstant.CANDIDATE:
         handleCmd(message, session);
         break;
+      case MsgTypeConstant.HEART:
+        handleHeart(message, session);
       default:
         break;
+    }
+  }
+
+  private void handleHeart(Message message, Session session) {
+    if (!message.getContent().equals("ok")) {
+      this.onClose(session);
     }
   }
 

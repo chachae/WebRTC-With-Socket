@@ -63,6 +63,9 @@
     mounted() {
       this.randomId()
       this.connSocket()
+      this.$nextTick(() => {
+        setInterval(this.checkHeart, 300000);
+      })
     },
     methods: {
       /***
@@ -219,6 +222,18 @@
           fromId: this.loginForm.userId,
           toId: this.monitorForm.userId,
           content: {sdp: sessionDescription}
+        }))
+      },
+
+      /***
+       * 心跳
+       */
+      checkHeart(){
+        this.sendOne(JSON.stringify({
+          command: 'heart',
+          fromId: this.loginForm.userId,
+          toId: this.loginForm.userId,
+          content: 'ok'
         }))
       },
 

@@ -11,4 +11,5 @@ public interface MsgTypeConstant {
   String OFFER = "offer";
   String ANSWER = "answer";
   String CANDIDATE = "candidate";
+  String HEART = "heart";
 }
